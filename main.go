@@ -21,6 +21,9 @@ func main() {
 		panic(err)
 	}
 	a := aws.NewAWS()
+	if err != nil {
+		panic(err)
+	}
 	for i := range addr {
 		if a.IsAt(addr[i]) {
 			fmt.Printf("%-15s IS AT AWS\n", addr[i])

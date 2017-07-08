@@ -9,8 +9,10 @@ package aws
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net"
-	"os"
+	"net/http"
 	"strings"
 )
 
@@ -41,6 +43,24 @@ func NewAWS() *AWS {
 	return &AWS{
 		r: loadDefaults(),
 	}
+}
+
+func (a *AWS) UpdateRanges() error {
+	res, err := http.Get("https://ip-ranges.amazonaws.com/ip-ranges.json")
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusOK {
+		rec, err := load(res.Body)
+		if err != nil {
+			return err
+		}
+		a.r = rec
+		return nil
+	}
+	return fmt.Errorf("Unexpected HTTP Status: %d", res.StatusCode)
+
 }
 
 func (a *AWS) IsAt(addr string) bool {
@@ -88,24 +108,18 @@ func (a *AWS) isAtIPv6(addr net.IP) bool {
 
 func loadDefaults() *Record {
 	r := strings.NewReader(defaultIPRanges)
+	rec, err := load(r)
+	if err != nil {
+		panic(err)
+	}
+	return rec
+}
+
+func load(r io.Reader) (*Record, error) {
 	var rec Record
 	err := json.NewDecoder(r).Decode(&rec)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return &rec
-}
-
-func load(name string) *Record {
-	f, err := os.Open(name)
-	if err != nil {
-		panic(err)
-	}
-	var r Record
-	err = json.NewDecoder(f).Decode(&r)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-	return &r
+	return &rec, nil
 }
