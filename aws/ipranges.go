@@ -7,7 +7,7 @@
 
 package aws
 
-const defaultIPRanges = `
+const defaultIpRanges = `
 {
   "syncToken": "1499303531",
   "createDate": "2017-07-06-01-12-11",

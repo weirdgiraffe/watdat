@@ -1,5 +1,5 @@
 //
-// main.go
+// aws.go
 // Copyright (C) 2017 weirdgiraffe <giraffe@cyberzoo.xyz>
 //
 // Distributed under terms of the MIT license.
@@ -43,6 +43,10 @@ func NewAWS() *AWS {
 	return &AWS{
 		r: loadDefaults(),
 	}
+}
+
+func (a *AWS) Name() string {
+	return "AWS"
 }
 
 func (a *AWS) UpdateRanges() error {
@@ -107,7 +111,7 @@ func (a *AWS) isAtIPv6(addr net.IP) bool {
 }
 
 func loadDefaults() *Record {
-	r := strings.NewReader(defaultIPRanges)
+	r := strings.NewReader(defaultIpRanges)
 	rec, err := load(r)
 	if err != nil {
 		panic(err)
