@@ -15,6 +15,7 @@ import (
 	"github.com/weirdgiraffe/isat"
 	"github.com/weirdgiraffe/isat/aws"
 	"github.com/weirdgiraffe/isat/azure"
+	"github.com/weirdgiraffe/isat/gcp"
 )
 
 func main() {
@@ -25,6 +26,7 @@ func main() {
 	providers := []isat.Provider{
 		aws.NewAWS(),
 		azure.NewAzure(),
+		gcp.NewGCP(),
 	}
 	for _, p := range providers {
 		for i := range addr {
