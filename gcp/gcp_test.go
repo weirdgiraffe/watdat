@@ -14,7 +14,7 @@ import (
 
 func TestUpdate(t *testing.T) {
 	g := NewGCP()
-	err := g.UpdateRanges()
+	_, err := g.LoadRanges()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestObeBlockResultParsing(t *testing.T) {
 	for i := range expected {
 		found := false
 		for j := range res {
-			if strings.EqualFold(res[j], expected[i]) {
+			if strings.EqualFold(res[j].CIDR, expected[i]) {
 				found = true
 				break
 			}

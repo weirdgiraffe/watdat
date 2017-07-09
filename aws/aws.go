@@ -11,9 +11,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"strings"
+
+	"github.com/weirdgiraffe/watdatcloud"
 )
 
 type Record struct {
@@ -36,94 +37,49 @@ type IPv6 struct {
 }
 
 type AWS struct {
-	r *Record
+	loaded bool
 }
 
 func NewAWS() *AWS {
-	return &AWS{
-		r: loadDefaults(),
+	return &AWS{}
+}
+
+func (a *AWS) LoadRanges() ([]watdatcloud.Range, error) {
+	if !a.loaded {
+		a.loaded = true
+		return decode(strings.NewReader(defaultIpRanges))
 	}
-}
-
-func (a *AWS) Name() string {
-	return "AWS"
-}
-
-func (a *AWS) UpdateRanges() error {
 	res, err := http.Get("https://ip-ranges.amazonaws.com/ip-ranges.json")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode == http.StatusOK {
-		rec, err := load(res.Body)
-		if err != nil {
-			return err
-		}
-		a.r = rec
-		return nil
+		return decode(res.Body)
 	}
-	return fmt.Errorf("Unexpected HTTP Status: %d", res.StatusCode)
-
+	return nil, fmt.Errorf("Unexpected HTTP Status: %d", res.StatusCode)
 }
 
-func (a *AWS) IsAt(addr string) bool {
-	ip := net.ParseIP(addr)
-	if ip.To4() != nil {
-		return a.isAtIPv4(ip.To4())
-	}
-	if ip.To16() != nil {
-		return a.isAtIPv6(ip.To16())
-	}
-	panic("bad ip")
-}
-
-func (a *AWS) isAtIPv4(addr net.IP) bool {
-	for i := range a.r.Prefix {
-		ip, ipnet, err := net.ParseCIDR(a.r.Prefix[i].Prefix)
-		if err != nil {
-			panic(err)
-		}
-		if ip != nil && ip.Equal(addr) {
-			return true
-		}
-		if ipnet != nil && ipnet.Contains(addr) {
-			return true
-		}
-	}
-	return false
-}
-
-func (a *AWS) isAtIPv6(addr net.IP) bool {
-	for i := range a.r.Ipv6Prefix {
-		ip, ipnet, err := net.ParseCIDR(a.r.Ipv6Prefix[i].Prefix)
-		if err != nil {
-			panic(err)
-		}
-		if ip != nil && ip.Equal(addr) {
-			return true
-		}
-		if ipnet != nil && ipnet.Contains(addr) {
-			return true
-		}
-	}
-	return false
-}
-
-func loadDefaults() *Record {
-	r := strings.NewReader(defaultIpRanges)
-	rec, err := load(r)
-	if err != nil {
-		panic(err)
-	}
-	return rec
-}
-
-func load(r io.Reader) (*Record, error) {
+func decode(r io.Reader) ([]watdatcloud.Range, error) {
 	var rec Record
 	err := json.NewDecoder(r).Decode(&rec)
 	if err != nil {
 		return nil, err
 	}
-	return &rec, nil
+	ret := []watdatcloud.Range{}
+	for _, ip := range rec.Prefix {
+		ret = append(ret, watdatcloud.Range{
+			Provider: "AWS",
+			Info:     ip.Region + " " + ip.Service,
+			CIDR:     watdatcloud.AddrToCIDR(ip.Prefix),
+		})
+	}
+	for _, ip := range rec.Ipv6Prefix {
+		ret = append(ret, watdatcloud.Range{
+			Provider: "AWS",
+			Info:     ip.Region + " " + ip.Service,
+			CIDR:     watdatcloud.AddrToCIDR(ip.Prefix),
+		})
+	}
+	return ret, nil
 }

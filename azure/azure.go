@@ -12,10 +12,11 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"regexp"
 	"strings"
+
+	"github.com/weirdgiraffe/watdatcloud"
 )
 
 type Record struct {
@@ -34,39 +35,50 @@ type IpRange struct {
 }
 
 type Azure struct {
-	r *Record
+	loaded bool
 }
 
 func NewAzure() *Azure {
-	return &Azure{
-		r: loadDefaults(),
+	return &Azure{}
+}
+
+func (a *Azure) LoadRanges() ([]watdatcloud.Range, error) {
+	if !a.loaded {
+		a.loaded = true
+		return decode(strings.NewReader(defaultIpRanges))
 	}
-}
-
-func (a *Azure) Name() string {
-	return "Azure"
-
-}
-
-func (a *Azure) UpdateRanges() error {
 	link, err := downloadLink()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	res, err := http.Get(link)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode == http.StatusOK {
-		rec, err := load(res.Body)
-		if err != nil {
-			return err
-		}
-		a.r = rec
-		return nil
+		return decode(res.Body)
 	}
-	return fmt.Errorf("Unexpected HTTP Status: %d", res.StatusCode)
+	return nil, fmt.Errorf("Unexpected HTTP Status: %d", res.StatusCode)
+}
+
+func decode(r io.Reader) ([]watdatcloud.Range, error) {
+	var rec Record
+	err := xml.NewDecoder(r).Decode(&rec)
+	if err != nil {
+		return nil, err
+	}
+	ret := []watdatcloud.Range{}
+	for _, reg := range rec.Region {
+		for i := range reg.IpRange {
+			ret = append(ret, watdatcloud.Range{
+				Provider: "Azure",
+				Info:     reg.Name,
+				CIDR:     watdatcloud.AddrToCIDR(reg.IpRange[i].Subnet),
+			})
+		}
+	}
+	return ret, nil
 }
 
 func downloadLink() (link string, err error) {
@@ -94,48 +106,4 @@ func findLinkInText(text []byte) (link string, err error) {
 		return "", fmt.Errorf("Download link not found")
 	}
 	return matches[1], nil
-}
-
-func (a *Azure) IsAt(addr string) bool {
-	ip := net.ParseIP(addr)
-	for _, region := range a.r.Region {
-		for i := range region.IpRange {
-			if a.isAtIP(ip, region.IpRange[i].Subnet) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func (a *Azure) isAtIP(addr net.IP, subnet string) bool {
-	ip, ipnet, err := net.ParseCIDR(subnet)
-	if err != nil {
-		panic(err)
-	}
-	if ip != nil && ip.Equal(addr) {
-		return true
-	}
-	if ipnet != nil && ipnet.Contains(addr) {
-		return true
-	}
-	return false
-}
-
-func loadDefaults() *Record {
-	r := strings.NewReader(defaultIpRanges)
-	rec, err := load(r)
-	if err != nil {
-		panic(err)
-	}
-	return rec
-}
-
-func load(r io.Reader) (*Record, error) {
-	var rec Record
-	err := xml.NewDecoder(r).Decode(&rec)
-	if err != nil {
-		return nil, err
-	}
-	return &rec, nil
 }

@@ -8,14 +8,15 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
 
-	"github.com/weirdgiraffe/isat"
-	"github.com/weirdgiraffe/isat/aws"
-	"github.com/weirdgiraffe/isat/azure"
-	"github.com/weirdgiraffe/isat/gcp"
+	"github.com/weirdgiraffe/watdatcloud"
+	"github.com/weirdgiraffe/watdatcloud/aws"
+	"github.com/weirdgiraffe/watdatcloud/azure"
+	"github.com/weirdgiraffe/watdatcloud/gcp"
 )
 
 func main() {
@@ -23,16 +24,27 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	providers := []isat.Provider{
+	l := watdatcloud.NewRangeLookuper(
 		aws.NewAWS(),
 		azure.NewAzure(),
 		gcp.NewGCP(),
+	)
+	err = l.UpdateRanges()
+	if err != nil {
+		panic(err)
 	}
-	for _, p := range providers {
-		for i := range addr {
-			if p.IsAt(addr[i]) {
-				fmt.Printf("%-15s IS AT %s\n", addr[i], p.Name())
+	for i := range addr {
+		res, err := l.Lookup(addr[i])
+		if err != nil {
+			if err.(*watdatcloud.RangeNotFound) != nil {
+				continue
 			}
+			panic(err)
 		}
+		b, err := json.MarshalIndent(res, "", "  ")
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(string(b))
 	}
 }

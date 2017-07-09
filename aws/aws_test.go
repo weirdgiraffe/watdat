@@ -11,7 +11,7 @@ import "testing"
 
 func TestUpdate(t *testing.T) {
 	a := NewAWS()
-	err := a.UpdateRanges()
+	_, err := a.LoadRanges()
 	if err != nil {
 		t.Fatal(err)
 	}
